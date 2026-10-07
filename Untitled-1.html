@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Manajemen Percetakan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        
+        /* CSS Khusus untuk Cetak (Print) */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #receipt-print-area, #receipt-print-area * {
+                visibility: visible;
+            }
+            #receipt-print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                box-shadow: none !important;
+                background: white !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body class="text-gray-800 h-screen flex overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-slate-900 text-white flex-shrink-0 hidden md:flex flex-col transition-all duration-300" id="sidebar">
+        <div class="h-16 flex items-center justify-center border-b border-slate-700">
+            <h1 class="text-xl font-bold tracking-wider flex items-center gap-2">
+                <i class="fas fa-print text-blue-400"></i> PrintMaster
+            </h1>
+        </div>
+        <nav class="flex-1 overflow-y-auto py-4">
+            <ul class="space-y-2 px-3">
+                <li>
+                    <button onclick="switchTab('dashboard')" id="nav-dashboard" class="w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 bg-blue-600 text-white transition-colors">
+                        <i class="fas fa-chart-pie w-5"></i> Dashboard
+                    </button>
+                </li>
+                <li>
+                    <button onclick="switchTab('orders')" id="nav-orders" class="w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors">
+                        <i class="fas fa-shopping-cart w-5"></i> Pesanan
+                    </button>
+                </li>
+                <li>
+                    <button onclick="switchTab('stock')" id="nav-stock" class="w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors">
+                        <i class="fas fa-box w-5"></i> Stok Barang
+                    </button>
+                </li>
+                <li>
+                    <button onclick="switchTab('finance')" id="nav-finance" class="w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors">
+                        <i class="fas fa-wallet w-5"></i> Keuangan
+                    </button>
+                </li>
+            </ul>
+        </nav>
+        <div class="p-4 border-t border-slate-700 text-xs text-slate-400 text-center">
+            &copy; 2026 PrintMaster Sys
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        
+        <!-- Topbar -->
+        <header class="h-16 bg-white shadow-sm flex items-center justify-between px-6 flex-shrink-0 z-10">
+            <button class="md:hidden text-gray-600 hover:text-gray-900" onclick="toggleSidebar()">
+                <i class="fas fa-bars text-xl"></i>
+            </button>
+            <div class="text-lg font-semibold text-gray-700" id="page-title">Dashboard</div>
+            <div class="flex items-center gap-3">
+                <div id="auth-status" class="text-sm font-medium px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full flex items-center gap-2">
+                    <i class="fas fa-spinner fa-spin"></i> Menghubungkan...
+                </div>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <div class="flex-1 overflow-y-auto p-6 bg-gray-50" id="content-area">
+            
+            <!-- VIEW: DASHBOARD -->
+            <div id="view-dashboard" class="space-y-6">
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">Total Pemasukan</p>
+                                <h3 class="text-2xl font-bold text-gray-800" id="dash-income">Rp 0</h3>
+                            </div>
+                            <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                                <i class="fas fa-arrow-down"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">Total Pengeluaran</p>
+                                <h3 class="text-2xl font-bold text-gray-800" id="dash-expense">Rp 0</h3>
+                            </div>
+                            <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                                <i class="fas fa-arrow-up"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">Saldo Bersih</p>
+                                <h3 class="text-2xl font-bold text-gray-800" id="dash-balance">Rp 0</h3>
+                            </div>
+                            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                <i class="fas fa-wallet"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">Pesanan Aktif</p>
+                                <h3 class="text-2xl font-bold text-gray-800" id="dash-orders">0</h3>
+                            </div>
+                            <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
+                                <i class="fas fa-shopping-bag"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Grafik Keuangan Bulanan</h3>
+                    <div class="h-64 w-full relative">
+                        <canvas id="financeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: ORDERS -->
+            <div id="view-orders" class="hidden space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <div class="flex flex-wrap gap-2" id="order-tabs">
+                        <button onclick="setOrderFilter('Semua', 'tab-semua')" id="tab-semua" class="px-4 py-2 rounded-lg text-sm font-medium bg-blue-100 text-blue-700 transition-colors">Semua</button>
+                        <button onclick="setOrderFilter('Belum Selesai', 'tab-belum-selesai')" id="tab-belum-selesai" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">Belum Selesai</button>
+                        <button onclick="setOrderFilter('Belum Diambil', 'tab-belum-diambil')" id="tab-belum-diambil" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">Belum Diambil</button>
+                        <button onclick="setOrderFilter('Selesai', 'tab-selesai')" id="tab-selesai" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">Selesai</button>
+                    </div>
+                    <button onclick="openModal('modal-order')" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 text-sm whitespace-nowrap">
+                        <i class="fas fa-plus"></i> Pesanan Baru
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3">Tanggal</th>
+                                    <th class="px-6 py-3">Pelanggan</th>
+                                    <th class="px-6 py-3">Jenis Cetakan</th>
+                                    <th class="px-6 py-3">Qty</th>
+                                    <th class="px-6 py-3">Total (Rp)</th>
+                                    <th class="px-6 py-3">Status</th>
+                                    <th class="px-6 py-3 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orders-tbody">
+                                <!-- Data will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: STOCK -->
+            <div id="view-stock" class="hidden space-y-6">
+                <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="font-semibold text-gray-800">Riwayat Stok Keluar/Masuk</h3>
+                    <button onclick="openModal('modal-stock')" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 text-sm">
+                        <i class="fas fa-plus"></i> Catat Stok
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3">Tanggal</th>
+                                    <th class="px-6 py-3">Nama Barang</th>
+                                    <th class="px-6 py-3">Jenis</th>
+                                    <th class="px-6 py-3">Jumlah</th>
+                                    <th class="px-6 py-3">Keterangan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-tbody">
+                                <!-- Data will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: FINANCE -->
+            <div id="view-finance" class="hidden space-y-6">
+                <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="font-semibold text-gray-800">Pencatatan Keuangan</h3>
+                    <button onclick="openModal('modal-finance')" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 text-sm">
+                        <i class="fas fa-plus"></i> Tambah Transaksi
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3">Tanggal</th>
+                                    <th class="px-6 py-3">Keterangan</th>
+                                    <th class="px-6 py-3">Jenis</th>
+                                    <th class="px-6 py-3">Nominal (Rp)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="finance-tbody">
+                                <!-- Data will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- MODALS -->
+    <!-- Overlay -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity" onclick="closeAllModals()"></div>
+
+    <!-- Modal: Add Order -->
+    <div id="modal-order" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-xl z-50 w-full max-w-md hidden">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-4">Tambah Pesanan Baru</h3>
+            <form id="form-order" class="space-y-4" onsubmit="submitOrder(event)">
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-900">Nama Pelanggan</label>
+                    <input type="text" id="order-customer" required placeholder="Masukkan nama pelanggan" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                </div>
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-900">Jenis Pesanan</label>
+                    <input type="text" id="order-type" required placeholder="Contoh: Cetak Spanduk, Kartu Nama" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-900">Jumlah (Qty)</label>
+                        <input type="number" id="order-qty" min="1" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-900">Total Harga (Rp)</label>
+                        <input type="number" id="order-price" min="0" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+                </div>
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-900">Status Pesanan</label>
+                    <select id="order-status" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                        <option value="Belum Selesai">Belum Selesai</option>
+                        <option value="Belum Diambil">Belum Diambil</option>
+                        <option value="Selesai">Selesai</option>
+                    </select>
+                </div>
+                <div class="flex items-center mt-2">
+                    <input type="checkbox" id="order-paid" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                    <label for="order-paid" class="ml-2 text-sm font-medium text-gray-900">Sudah Lunas (Otomatis masuk Keuangan)</label>
+                </div>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button type="button" onclick="closeAllModals()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Batal</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add Stock -->
+    <div id="modal-stock" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-xl z-50 w-full max-w-md hidden">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-4">Catat Stok Barang</h3>
+            <form id="form-stock" class="space-y-4" onsubmit="submitStock(event)">
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-900">Nama Barang</label>
+                    <input type="text" id="stock-name" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-900">Jenis Pergerakan</label>
+                        <select id="stock-type" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                            <option value="Masuk">Masuk (Beli/Retur)</option>
+                            <option value="Keluar">Keluar (Dipakai)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-900">Jumlah</label>
+                        <input type="number" id="stock-qty" min="1" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+                </div>
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-900">Keterangan (Opsional)</label>
+                    <input type="text" id="stock-desc" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                </div>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button type="button" onclick="closeAllModals()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Batal</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add Finance -->
+    <div id="modal-finance" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-xl z-50 w-full max-w-md hidden">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-4">Tambah Transaksi Keuangan</h3>
+            <form id="form-finance" class="space-y-4" onsubmit="submitFinance(event)">
+                <div>
+                    <label class="block mb-1 text-sm font-medium text-gray-900">Keterangan</label>
+                    <input type="text" id="finance-desc" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-900">Jenis</label>
+                        <select id="finance-type" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                            <option value="Pemasukan">Pemasukan</option>
+                            <option value="Pengeluaran">Pengeluaran</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-900">Nominal (Rp)</label>
+                        <input type="number" id="finance-amount" min="1" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button type="button" onclick="closeAllModals()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Batal</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Preview Receipt -->
+    <div id="modal-receipt" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md hidden">
+        <div class="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <!-- Header (Hidden when printing) -->
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 no-print">
+                <h3 class="text-lg font-bold text-gray-800">Preview Struk</h3>
+                <button onclick="closeAllModals()" class="text-gray-400 hover:text-gray-600 transition-colors"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <!-- Visual Preview Area -->
+            <div class="p-6 overflow-y-auto bg-gray-200 flex justify-center no-print">
+                <!-- Actual Printable Content -->
+                <div id="receipt-print-area" class="bg-white p-6 shadow-sm w-full text-black rounded">
+                    <div class="text-center mb-6">
+                        <h2 class="text-2xl font-bold uppercase tracking-widest"><i class="fas fa-print"></i> PrintMaster</h2>
+                        <p class="text-sm text-gray-500 mt-1">Sistem Layanan Percetakan Cepat</p>
+                        <div class="border-b-2 border-dashed border-gray-400 my-4"></div>
+                    </div>
+                    
+                    <div class="space-y-2 text-sm mb-6 font-mono">
+                        <div class="flex justify-between text-gray-500 text-xs mb-3">
+                            <span id="prev-order-id">#000000</span>
+                            <span id="prev-date">-</span>
+                        </div>
+                        <div class="flex justify-between"><span>Pelanggan:</span> <span id="prev-customer" class="font-bold">-</span></div>
+                        <div class="flex justify-between"><span>Status:</span> <span id="prev-status" class="font-bold">-</span></div>
+                    </div>
+                    
+                    <table class="w-full text-sm font-mono mb-6">
+                        <thead>
+                            <tr class="border-b border-dashed border-gray-400">
+                                <th class="text-left py-2 font-normal">Item</th>
+                                <th class="text-center py-2 font-normal">Qty</th>
+                                <th class="text-right py-2 font-normal">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="py-2" id="prev-item">-</td>
+                                <td class="text-center py-2" id="prev-qty">-</td>
+                                <td class="text-right py-2 font-bold" id="prev-total">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div class="border-t-2 border-dashed border-gray-400 pt-4 text-center">
+                        <p class="font-bold text-lg">Terima Kasih!</p>
+                        <p class="text-xs text-gray-500 mt-1">Harap bawa struk ini saat pengambilan barang.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Actions (Hidden when printing) -->
+            <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 no-print">
+                <button type="button" onclick="closeAllModals()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Batal / Tutup</button>
+                <button type="button" onclick="window.print()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors">
+                    <i class="fas fa-print"></i> Cetak Sekarang
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
+
+    <!-- Scripts -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global State & Config
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'printmaster-app';
+        let firebaseConfig = {};
+        
+        try {
+            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        } catch (e) {
+            console.warn("Invalid firebase config, falling back to local simulation if needed.");
+        }
+
+        let app, db, auth;
+        let currentUser = null;
+        
+        // Data Arrays
+        let state = {
+            orders: [],
+            stocks: [],
+            finances: [],
+            currentOrderFilter: 'Semua'
+        };
+        
+        let chartInstance = null;
+
+        // Utility: Format Rupiah
+        const formatRp = (angka) => {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+        };
+
+        // Utility: Format Date
+        const formatDate = (dateObj) => {
+            if (!dateObj) return '-';
+            const d = dateObj.toDate ? dateObj.toDate() : new Date(dateObj);
+            return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        };
+
+        // Utility: Toast Notification
+        window.showToast = (message, type = 'success') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let colorClasses = 'bg-gray-800 text-white';
+            if(type === 'success') colorClasses = 'bg-green-600 text-white';
+            if(type === 'error') colorClasses = 'bg-red-600 text-white';
+            
+            toast.className = `px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 transition-opacity duration-300 ${colorClasses} transform translate-y-10 opacity-0`;
+            toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                <span class="text-sm font-medium">${message}</span>
+            `;
+            container.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            }, 10);
+            
+            // Remove after 3s
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        };
+
+        // UI Helpers
+        window.toggleSidebar = () => {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('hidden');
+        };
+
+        window.switchTab = (tabName) => {
+            // Update active state in sidebar
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.add('hover:bg-slate-800', 'text-slate-300');
+            });
+            const activeBtn = document.getElementById(`nav-${tabName}`);
+            if(activeBtn) {
+                activeBtn.classList.remove('hover:bg-slate-800', 'text-slate-300');
+                activeBtn.classList.add('bg-blue-600', 'text-white');
+            }
+
+            // Hide all views
+            ['dashboard', 'orders', 'stock', 'finance'].forEach(view => {
+                document.getElementById(`view-${view}`).classList.add('hidden');
+            });
+            
+            // Show target view
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+            
+            // Update Title
+            const titles = {
+                'dashboard': 'Dashboard',
+                'orders': 'Manajemen Pesanan',
+                'stock': 'Stok Barang',
+                'finance': 'Keuangan'
+            };
+            document.getElementById('page-title').innerText = titles[tabName];
+            
+            if(window.innerWidth < 768) {
+                document.getElementById('sidebar').classList.add('hidden');
+            }
+
+            // Re-render chart if dashboard
+            if(tabName === 'dashboard') renderDashboard();
+        };
+
+        window.openModal = (modalId) => {
+            document.getElementById('modal-overlay').classList.remove('hidden');
+            document.getElementById(modalId).classList.remove('hidden');
+        };
+
+        window.closeAllModals = () => {
+            document.getElementById('modal-overlay').classList.add('hidden');
+            document.querySelectorAll('[id^="modal-"]').forEach(modal => {
+                if(modal.id !== 'modal-overlay') modal.classList.add('hidden');
+            });
+        };
+
+        // Initialize App
+        const initApp = async () => {
+            if(firebaseConfig && firebaseConfig.apiKey) {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                try {
+                    if (typeof __initial_auth_token !== 'undefined') {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    
+                    currentUser = auth.currentUser;
+                    updateAuthStatus('Terhubung', 'green');
+                    setupRealtimeListeners();
+                } catch (error) {
+                    console.error("Auth error:", error);
+                    updateAuthStatus('Gagal Terhubung', 'red');
+                    fallbackToLocalMode();
+                }
+            } else {
+                updateAuthStatus('Mode Lokal (Simulasi)', 'yellow');
+                fallbackToLocalMode();
+            }
+        };
+
+        const updateAuthStatus = (text, color) => {
+            const el = document.getElementById('auth-status');
+            el.innerHTML = `<i class="fas fa-circle text-[10px]"></i> ${text}`;
+            el.className = `text-sm font-medium px-3 py-1 rounded-full flex items-center gap-2 bg-${color}-100 text-${color}-800`;
+        };
+
+        // Setup Firestore Listeners (Rule 1 & 2 compliant)
+        const setupRealtimeListeners = () => {
+            if (!currentUser) return;
+            const uid = currentUser.uid;
+            
+            // Orders Listener
+            const ordersRef = collection(db, 'artifacts', appId, 'users', uid, 'orders');
+            onSnapshot(ordersRef, (snapshot) => {
+                state.orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                state.orders.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+                renderOrders();
+                renderDashboard();
+            }, (err) => console.error(err));
+
+            // Stocks Listener
+            const stocksRef = collection(db, 'artifacts', appId, 'users', uid, 'stocks');
+            onSnapshot(stocksRef, (snapshot) => {
+                state.stocks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                state.stocks.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+                renderStocks();
+            }, (err) => console.error(err));
+
+            // Finances Listener
+            const financeRef = collection(db, 'artifacts', appId, 'users', uid, 'finances');
+            onSnapshot(financeRef, (snapshot) => {
+                state.finances = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                state.finances.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+                renderFinances();
+                renderDashboard();
+            }, (err) => console.error(err));
+        };
+
+        // Local Mode Fallback (If Firebase not available)
+        const fallbackToLocalMode = () => {
+            // Mock Data
+            state.orders = [
+                { id: '1', customer: 'Budi Santoso', type: 'Spanduk 3x1', qty: 2, price: 150000, status: 'Belum Selesai', createdAt: new Date() }
+            ];
+            state.stocks = [
+                { id: '1', name: 'Tinta Hitam', type: 'Masuk', qty: 5, desc: 'Restock mingguan', createdAt: new Date() }
+            ];
+            state.finances = [
+                { id: '1', desc: 'DP Spanduk', type: 'Pemasukan', amount: 50000, createdAt: new Date() }
+            ];
+            
+            renderOrders();
+            renderStocks();
+            renderFinances();
+            renderDashboard();
+        };
+
+        // CRUD Operations
+        window.submitOrder = async (e) => {
+            e.preventDefault();
+            const customer = document.getElementById('order-customer').value;
+            const type = document.getElementById('order-type').value;
+            const qty = Number(document.getElementById('order-qty').value);
+            const price = Number(document.getElementById('order-price').value);
+            const status = document.getElementById('order-status').value;
+            const isPaid = document.getElementById('order-paid').checked;
+
+            const newOrder = {
+                customer, type, qty, price, status: status, createdAt: db ? serverTimestamp() : new Date()
+            };
+
+            try {
+                if (currentUser && db) {
+                    const ref = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'orders');
+                    await addDoc(ref, newOrder);
+                    
+                    if (isPaid) {
+                        const financeRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'finances');
+                        await addDoc(financeRef, {
+                            desc: `Pembayaran: ${type} (${customer})`,
+                            type: 'Pemasukan',
+                            amount: price,
+                            createdAt: serverTimestamp()
+                        });
+                    }
+                } else {
+                    state.orders.unshift({ id: Date.now().toString(), ...newOrder, createdAt: new Date() });
+                    if(isPaid) {
+                        state.finances.unshift({ id: Date.now().toString()+'f', desc: `Pembayaran: ${type} (${customer})`, type: 'Pemasukan', amount: price, createdAt: new Date()});
+                        renderFinances();
+                    }
+                    renderOrders();
+                    renderDashboard();
+                }
+                
+                closeAllModals();
+                document.getElementById('form-order').reset();
+                showToast('Pesanan berhasil ditambahkan');
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal menambahkan pesanan', 'error');
+            }
+        };
+
+        window.submitStock = async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('stock-name').value;
+            const type = document.getElementById('stock-type').value;
+            const qty = Number(document.getElementById('stock-qty').value);
+            const desc = document.getElementById('stock-desc').value;
+
+            const newItem = { name, type, qty, desc, createdAt: db ? serverTimestamp() : new Date() };
+
+            try {
+                if (currentUser && db) {
+                    const ref = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'stocks');
+                    await addDoc(ref, newItem);
+                } else {
+                    state.stocks.unshift({ id: Date.now().toString(), ...newItem, createdAt: new Date() });
+                    renderStocks();
+                }
+                closeAllModals();
+                document.getElementById('form-stock').reset();
+                showToast('Stok berhasil dicatat');
+            } catch (err) {
+                showToast('Gagal mencatat stok', 'error');
+            }
+        };
+
+        window.submitFinance = async (e) => {
+            e.preventDefault();
+            const desc = document.getElementById('finance-desc').value;
+            const type = document.getElementById('finance-type').value;
+            const amount = Number(document.getElementById('finance-amount').value);
+
+            const newItem = { desc, type, amount, createdAt: db ? serverTimestamp() : new Date() };
+
+            try {
+                if (currentUser && db) {
+                    const ref = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'finances');
+                    await addDoc(ref, newItem);
+                } else {
+                    state.finances.unshift({ id: Date.now().toString(), ...newItem, createdAt: new Date() });
+                    renderFinances();
+                    renderDashboard();
+                }
+                closeAllModals();
+                document.getElementById('form-finance').reset();
+                showToast('Transaksi berhasil dicatat');
+            } catch (err) {
+                showToast('Gagal mencatat transaksi', 'error');
+            }
+        };
+
+        window.updateOrderStatus = async (id, currentStatus) => {
+            const nextStatus = currentStatus === 'Belum Selesai' ? 'Belum Diambil' : 'Selesai';
+            if (currentStatus === 'Selesai') return; // Cannot change
+
+            try {
+                if (currentUser && db) {
+                    const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'orders', id);
+                    await updateDoc(docRef, { status: nextStatus });
+                } else {
+                    const idx = state.orders.findIndex(o => o.id === id);
+                    if(idx > -1) state.orders[idx].status = nextStatus;
+                    renderOrders();
+                    renderDashboard();
+                }
+                showToast(`Status diubah menjadi: ${nextStatus}`);
+            } catch (err) {
+                showToast('Gagal mengubah status', 'error');
+            }
+        };
+
+        window.printReceipt = (id) => {
+            const order = state.orders.find(o => o.id === id);
+            if(!order) return;
+
+            // Generate short ID for receipt
+            const shortId = '#' + id.substring(0, 6).toUpperCase();
+
+            document.getElementById('prev-order-id').innerText = shortId;
+            document.getElementById('prev-date').innerText = formatDate(order.createdAt);
+            document.getElementById('prev-customer').innerText = order.customer;
+            document.getElementById('prev-status').innerText = order.status;
+            document.getElementById('prev-item').innerText = order.type;
+            document.getElementById('prev-qty').innerText = order.qty;
+            document.getElementById('prev-total').innerText = formatRp(order.price);
+
+            openModal('modal-receipt');
+        };
+
+        window.setOrderFilter = (status, tabId) => {
+            state.currentOrderFilter = status;
+            
+            // Update Tab UI
+            const container = document.getElementById('order-tabs');
+            const buttons = container.querySelectorAll('button');
+            buttons.forEach(btn => {
+                if (btn.id === tabId) {
+                    btn.className = 'px-4 py-2 rounded-lg text-sm font-medium bg-blue-100 text-blue-700 transition-colors';
+                } else {
+                    btn.className = 'px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors';
+                }
+            });
+            
+            renderOrders();
+        };
+
+        // Render Functions
+        window.renderOrders = () => {
+            const tbody = document.getElementById('orders-tbody');
+            const filter = state.currentOrderFilter;
+            
+            let filteredOrders = state.orders;
+            if (filter !== 'Semua') {
+                filteredOrders = filteredOrders.filter(o => o.status === filter);
+            }
+
+            if (filteredOrders.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500">Belum ada data pesanan.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filteredOrders.map(order => {
+                let statusColor = 'bg-gray-100 text-gray-800';
+                if(order.status === 'Belum Diambil') statusColor = 'bg-yellow-100 text-yellow-800';
+                if(order.status === 'Selesai') statusColor = 'bg-green-100 text-green-800';
+
+                return `
+                <tr class="bg-white border-b hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap">${formatDate(order.createdAt)}</td>
+                    <td class="px-6 py-4 font-medium text-gray-900">${order.customer}</td>
+                    <td class="px-6 py-4">${order.type}</td>
+                    <td class="px-6 py-4">${order.qty}</td>
+                    <td class="px-6 py-4 font-semibold">${formatRp(order.price)}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2.5 py-1 text-xs rounded-full font-medium ${statusColor}">${order.status}</span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex justify-center gap-2">
+                            ${order.status !== 'Selesai' ? `
+                                <button onclick="updateOrderStatus('${order.id}', '${order.status}')" class="text-white bg-blue-500 hover:bg-blue-600 px-2 py-1.5 rounded text-xs transition-colors" title="Update Status">
+                                    <i class="fas fa-arrow-right"></i>
+                                </button>
+                            ` : ''}
+                            <button onclick="printReceipt('${order.id}')" class="text-white bg-slate-700 hover:bg-slate-800 px-2 py-1.5 rounded text-xs transition-colors" title="Cetak Struk">
+                                <i class="fas fa-print"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        };
+
+        window.renderStocks = () => {
+            const tbody = document.getElementById('stock-tbody');
+            if (state.stocks.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Belum ada riwayat stok.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = state.stocks.map(item => {
+                const isMasuk = item.type === 'Masuk';
+                return `
+                <tr class="bg-white border-b hover:bg-gray-50">
+                    <td class="px-6 py-4">${formatDate(item.createdAt)}</td>
+                    <td class="px-6 py-4 font-medium">${item.name}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs rounded-full ${isMasuk ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                            <i class="fas ${isMasuk ? 'fa-arrow-down' : 'fa-arrow-up'} mr-1"></i> ${item.type}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 font-bold text-gray-700">${item.qty}</td>
+                    <td class="px-6 py-4 text-gray-500">${item.desc || '-'}</td>
+                </tr>`;
+            }).join('');
+        };
+
+        window.renderFinances = () => {
+            const tbody = document.getElementById('finance-tbody');
+            if (state.finances.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">Belum ada transaksi.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = state.finances.map(item => {
+                const isPemasukan = item.type === 'Pemasukan';
+                return `
+                <tr class="bg-white border-b hover:bg-gray-50">
+                    <td class="px-6 py-4">${formatDate(item.createdAt)}</td>
+                    <td class="px-6 py-4">${item.desc}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs rounded-full ${isPemasukan ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                            ${item.type}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 font-semibold ${isPemasukan ? 'text-green-600' : 'text-red-600'}">
+                        ${isPemasukan ? '+' : '-'}${formatRp(item.amount)}
+                    </td>
+                </tr>`;
+            }).join('');
+        };
+
+        const renderDashboard = () => {
+            let income = 0;
+            let expense = 0;
+
+            state.finances.forEach(f => {
+                if (f.type === 'Pemasukan') income += f.amount;
+                else expense += f.amount;
+            });
+
+            document.getElementById('dash-income').innerText = formatRp(income);
+            document.getElementById('dash-expense').innerText = formatRp(expense);
+            document.getElementById('dash-balance').innerText = formatRp(income - expense);
+            
+            const activeOrders = state.orders.filter(o => o.status !== 'Selesai').length;
+            document.getElementById('dash-orders').innerText = activeOrders;
+
+            updateChart();
+        };
+
+        const updateChart = () => {
+            const ctx = document.getElementById('financeChart').getContext('2d');
+            
+            // Calculate simple monthly data from available finances (dummy approach for simulation: grouping by past days/months)
+            // For a robust implementation, we'll aggregate by Month-Year.
+            const monthlyData = {};
+            state.finances.forEach(f => {
+                const d = f.createdAt?.toDate ? f.createdAt.toDate() : new Date(f.createdAt);
+                if (!d || isNaN(d)) return;
+                
+                const month = d.toLocaleString('id-ID', { month: 'short', year: 'numeric' });
+                if (!monthlyData[month]) monthlyData[month] = { income: 0, expense: 0 };
+                
+                if (f.type === 'Pemasukan') monthlyData[month].income += f.amount;
+                else monthlyData[month].expense += f.amount;
+            });
+
+            const labels = Object.keys(monthlyData).reverse();
+            const incomeData = labels.map(l => monthlyData[l].income);
+            const expenseData = labels.map(l => monthlyData[l].expense);
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels.length > 0 ? labels : ['Bulan Ini'],
+                    datasets: [
+                        {
+                            label: 'Pemasukan',
+                            data: incomeData.length > 0 ? incomeData : [0],
+                            backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Pengeluaran',
+                            data: expenseData.length > 0 ? expenseData : [0],
+                            backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        };
+
+        // Initialize App on Load
+        window.onload = initApp;
+
+    </script>
+</body>
+</html>
